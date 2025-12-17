@@ -1,34 +1,43 @@
-name: Build AssetStudio (GUI+CLI)
+name: Build AssetStudio (GUI+CLI - net8.0-windows x64)
 
 on:
   workflow_dispatch: # 仅手动触发
 
 jobs:
-  build:
+  build-all:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      # 强制安装.NET 8.0.403，彻底避开.NET 10
-      - name: Setup .NET 8.0.403 SDK
+      # 强制锁定.NET 8.0.403，屏蔽.NET 10
+      - name: Install .NET 8.0.403 SDK
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.403'
-          overrideExisting: true # 覆盖系统默认的.NET 10 SDK
+          overrideExisting: true
 
-      # 用.NET CLI直接发布GUI（一步到位，无需单独restore/msbuild）
-      - name: Publish .NET8 GUI (WinForms)
-        run: dotnet publish AssetStudio.GUI/AssetStudio.GUI.csproj -c Release -f net8.0-windows -r win-x64 --self-contained true -o ./publish-gui
+      # ========== 构建GUI ==========
+      - name: Clean GUI Project
+        run: dotnet clean AssetStudio.GUI/AssetStudio.GUI.csproj -c Release
         shell: cmd
 
-      # 用.NET CLI直接发布CLI
-      - name: Publish .NET8 CLI
-        run: dotnet publish AssetStudio.CLI/AssetStudio.CLI.csproj -c Release -f net8.0 -r win-x64 --self-contained true -o ./publish-cli
+      - name: Publish GUI (net8.0-windows)
+        run: dotnet publish "AssetStudio.GUI/AssetStudio.GUI.csproj" -c Release -f net8.0-windows -r win-x64 --self-contained true -o "./publish-gui"
         shell: cmd
 
-      # 上传GUI产物
+      # ========== 构建CLI ==========
+      - name: Clean CLI Project
+        run: dotnet clean AssetStudio.CLI/AssetStudio.CLI.csproj -c Release
+        shell: cmd
+
+      # 关键：CLI的框架是net8.0-windows，而非net8.0
+      - name: Publish CLI (net8.0-windows)
+        run: dotnet publish "AssetStudio.CLI/AssetStudio.CLI.csproj" -c Release -f net8.0-windows -r win-x64 --self-contained true -o "./publish-cli"
+        shell: cmd
+
+      # ========== 上传产物 ==========
       - name: Upload GUI Artifact
         uses: actions/upload-artifact@v4
         with:
@@ -36,7 +45,6 @@ jobs:
           path: ./publish-gui/
           retention-days: 90
 
-      # 上传CLI产物
       - name: Upload CLI Artifact
         uses: actions/upload-artifact@v4
         with:
