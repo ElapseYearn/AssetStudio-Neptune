@@ -12,7 +12,13 @@
 		<AssemblyName>AssetStudio.GUI</AssemblyName>
 		<OutputPath>bin\$(Configuration)\</OutputPath>
 		<NoWarn>$(NoWarn);MSB3277</NoWarn>
+		<!-- 新增1：指定支持的平台为x64 -->
+		<Platforms>x64</Platforms>
+		<!-- 新增2：声明运行时标识符，匹配CI构建的win-x64 -->
+		<RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
 	</PropertyGroup>
+    <!-- 其余内容不变 -->
+</Project>
 
 	<ItemGroup>
 		<None Remove="Libraries\OpenTK.WinForms.dll" />
