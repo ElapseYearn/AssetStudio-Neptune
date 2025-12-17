@@ -1,48 +1,81 @@
-name: Build
+name: Build AssetStudio (GUI+CLI)
 
+# 触发条件：main分支提交（忽略无关文件）+ 手动触发
 on:
   push:
-    branches:
-      - 'main'
+    branches: [ main ]
     paths-ignore:
-      - '**/LICENSE'
-      - '**/build.yml'
-      - '**/.gitignore'
-      - '**/.gitattributes'
-  workflow_dispatch:
+      - 'LICENSE'
+      - '.github/workflows/build.yml'  # 精准匹配workflow文件，避免误判
+      - '.gitignore'
+      - '.gitattributes'
+  workflow_dispatch:  # 手动触发
+
 jobs:
   build:
-    runs-on: windows-latest
+    runs-on: windows-latest  # 仅Windows构建（GUI依赖WPF）
+    # 移除matrix，因为原文件误用了${{matrix.runs-on}}但未定义matrix
 
     steps:
+      # 1. 拉取源码（包含子模块，防止依赖缺失）
       - uses: actions/checkout@v4
-      - uses: microsoft/setup-msbuild@v1.1
+        with:
+          submodules: recursive
 
+      # 2. 配置MSBuild（关键：微软官方Action，适配VS 2022）
+      - uses: microsoft/setup-msbuild@v2  # 升级到v2版本，兼容性更好
+        with:
+          msbuild-architecture: x64  # 强制x64架构
+
+      # 3. NuGet还原所有依赖（.NET+项目引用）
       - name: Nuget Restore
-        run: nuget restore
+        run: nuget restore AssetStudio.sln  # 显式指定sln，避免路径问题
+        shell: cmd
 
-      - name: Build .Net7
-        run: msbuild /t:AssetStudio_GUI:publish /p:Configuration=Release /p:TargetFramework=net7.0-windows /p:SelfContained=false /verbosity:minimal
+      # 4. 分版本构建GUI（Net7/Net8）
+      - name: Build .NET7 GUI
+        run: msbuild AssetStudio.sln /t:AssetStudio_GUI:publish /p:Configuration=Release /p:TargetFramework=net7.0-windows /p:SelfContained=false /p:Platform=x64 /verbosity:minimal
+        shell: cmd
 
-      - name: Build .Net8
-        run: msbuild /t:AssetStudio_GUI:publish /p:Configuration=Release /p:TargetFramework=net8.0-windows /p:SelfContained=false /verbosity:minimal
+      - name: Build .NET8 GUI
+        run: msbuild AssetStudio.sln /t:AssetStudio_GUI:publish /p:Configuration=Release /p:TargetFramework=net8.0-windows /p:SelfContained=false /p:Platform=x64 /verbosity:minimal
+        shell: cmd
 
-      - name: Build .Net7 CLI
-        run: msbuild /t:AssetStudio_CLI:publish /p:Configuration=Release /p:TargetFramework=net7.0-windows /p:SelfContained=false /verbosity:minimal
+      # 5. 分版本构建CLI（Net7/Net8，原文件漏了CLI产物上传，补充）
+      - name: Build .NET7 CLI
+        run: msbuild AssetStudio.sln /t:AssetStudio_CLI:publish /p:Configuration=Release /p:TargetFramework=net7.0 /p:SelfContained=false /p:Platform=x64 /verbosity:minimal
+        shell: cmd
 
-      - name: Build .Net8 CLI
-        run: msbuild /t:AssetStudio_CLI:publish /p:Configuration=Release /p:TargetFramework=net8.0-windows /p:SelfContained=false /verbosity:minimal
+      - name: Build .NET8 CLI
+        run: msbuild AssetStudio.sln /t:AssetStudio_CLI:publish /p:Configuration=Release /p:TargetFramework=net8.0 /p:SelfContained=false /p:Platform=x64 /verbosity:minimal
+        shell: cmd
 
-      - name: Upload .Net7 Artifact
+      # 6. 上传GUI产物（修复matrix变量+精准路径）
+      - name: Upload .NET7 GUI Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: net7.0-${{ github.sha }}-${{matrix.runs-on}}
-          path: AssetStudio.GUI/bin/Release/net7.0-windows/publish
+          name: AssetStudio-GUI-net7.0-windows-x64
+          path: AssetStudio.GUI/bin/Release/net7.0-windows/publish/  # 末尾加/，确保上传所有文件
+          retention-days: 90
 
-      - name: Upload .Net8 Artifact
+      - name: Upload .NET8 GUI Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: net8.0-${{ github.sha }}-${{matrix.runs-on}}
-          path: AssetStudio.GUI/bin/Release/net8.0-windows/publish
+          name: AssetStudio-GUI-net8.0-windows-x64
+          path: AssetStudio.GUI/bin/Release/net8.0-windows/publish/
+          retention-days: 90
 
-    
+      # 7. 补充上传CLI产物（原文件漏了，关键）
+      - name: Upload .NET7 CLI Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AssetStudio-CLI-net7.0-windows-x64
+          path: AssetStudio.CLI/bin/Release/net7.0/publish/
+          retention-days: 90
+
+      - name: Upload .NET8 CLI Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AssetStudio-CLI-net8.0-windows-x64
+          path: AssetStudio.CLI/bin/Release/net8.0/publish/
+          retention-days: 90
