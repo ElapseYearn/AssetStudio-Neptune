@@ -1,7 +1,7 @@
 name: Build AssetStudio (GUI+CLI)
 
 on:
-  workflow_dispatch: # 仅保留手动触发，避免自动构建踩坑
+  workflow_dispatch: # 仅手动触发
 
 jobs:
   build:
@@ -11,7 +11,7 @@ jobs:
         with:
           submodules: recursive
 
-      # 强制安装.NET 8.0.403
+      # 强制安装.NET 8.0.403，避免.NET 10干扰
       - name: Setup .NET 8 SDK
         uses: actions/setup-dotnet@v4
         with:
@@ -23,23 +23,23 @@ jobs:
         with:
           msbuild-architecture: x64
 
-      # 直接还原依赖（无需clean）
+      # 还原依赖（指定框架）
       - name: Restore GUI Dependencies
-        run: dotnet restore AssetStudio.GUI/AssetStudio.GUI.csproj -r win-x64
+        run: dotnet restore AssetStudio.GUI/AssetStudio.GUI.csproj -f net8.0-windows -r win-x64
         shell: cmd
 
-      # 构建发布GUI
+      # 发布GUI（显式指定TargetFramework，解决NETSDK1129）
       - name: Publish .NET8 GUI
-        run: msbuild AssetStudio.GUI/AssetStudio.GUI.csproj /t:Publish /p:Configuration=Release /p:PublishDir=./publish-gui /verbosity:minimal
+        run: msbuild AssetStudio.GUI/AssetStudio.GUI.csproj /t:Publish /p:Configuration=Release /p:TargetFramework=net8.0-windows /p:PublishDir=./publish-gui /verbosity:minimal
         shell: cmd
 
-      # 构建CLI（可选，若不需要可删除）
+      # 发布CLI（同理，指定框架）
       - name: Restore CLI Dependencies
         run: dotnet restore AssetStudio.CLI/AssetStudio.CLI.csproj -r win-x64
         shell: cmd
 
       - name: Publish .NET8 CLI
-        run: msbuild AssetStudio.CLI/AssetStudio.CLI.csproj /t:Publish /p:Configuration=Release /p:PublishDir=./publish-cli /verbosity:minimal
+        run: msbuild AssetStudio.CLI/AssetStudio.CLI.csproj /t:Publish /p:Configuration=Release /p:TargetFramework=net8.0 /p:PublishDir=./publish-cli /verbosity:minimal
         shell: cmd
 
       # 上传产物
