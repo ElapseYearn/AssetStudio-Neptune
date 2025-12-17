@@ -14,51 +14,72 @@ jobs:
   build:
     runs-on: windows-latest
     steps:
+      # 1. 拉取源码（含子模块）
       - uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      # 关键：安装.NET 8 SDK（匹配项目实际框架）
+      # 2. 安装.NET 8 SDK（核心，匹配项目框架）
       - name: Setup .NET 8 SDK
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
 
+      # 3. 配置MSBuild（编译.NET项目）
       - uses: microsoft/setup-msbuild@v2
         with:
           msbuild-architecture: x64
 
-      # 先还原.NET 8依赖（确保project.assets.json包含net8.0-windows）
-      - name: Restore .NET 8 Dependencies
-        run: dotnet restore AssetStudio.sln --framework net8.0-windows
+      # 4. 还原依赖（仅还原整个解决方案，去掉无效的--framework参数）
+      - name: Restore All Dependencies
+        run: dotnet restore AssetStudio.sln
         shell: cmd
 
-      - name: Nuget Restore (兜底)
+      # 5. 兜底NuGet还原（兼容旧版项目）
+      - name: NuGet Restore
         run: nuget restore AssetStudio.sln
         shell: cmd
 
-      # 仅构建.NET8 GUI（移除.NET7，避免兼容问题）
+      # 6. 构建.NET8 GUI（关键：移除多余参数，仅保留核心）
       - name: Build .NET8 GUI
-        run: msbuild AssetStudio.sln /t:AssetStudio_GUI:publish /p:Configuration=Release /p:TargetFramework=net8.0-windows /p:SelfContained=true /p:Platform=x64 /p:RuntimeIdentifier=win-x64 /verbosity:minimal
+        run: |
+          msbuild AssetStudio.GUI/AssetStudio.GUI.csproj `
+            /t:Publish `
+            /p:Configuration=Release `
+            /p:TargetFramework=net8.0-windows `
+            /p:Platform=x64 `
+            /p:RuntimeIdentifier=win-x64 `
+            /p:SelfContained=true `
+            /p:PublishDir=./publish-gui `
+            /verbosity:minimal
         shell: cmd
 
-      # 仅构建.NET8 CLI（无windows后缀，适配CLI特性）
+      # 7. 构建.NET8 CLI
       - name: Build .NET8 CLI
-        run: msbuild AssetStudio.sln /t:AssetStudio_CLI:publish /p:Configuration=Release /p:TargetFramework=net8.0 /p:SelfContained=true /p:Platform=x64 /p:RuntimeIdentifier=win-x64 /verbosity:minimal
+        run: |
+          msbuild AssetStudio.CLI/AssetStudio.CLI.csproj `
+            /t:Publish `
+            /p:Configuration=Release `
+            /p:TargetFramework=net8.0 `
+            /p:Platform=x64 `
+            /p:RuntimeIdentifier=win-x64 `
+            /p:SelfContained=true `
+            /p:PublishDir=./publish-cli `
+            /verbosity:minimal
         shell: cmd
 
-      # 上传.NET8 GUI产物（核心）
+      # 8. 上传GUI产物（路径明确）
       - name: Upload .NET8 GUI Artifact
         uses: actions/upload-artifact@v4
         with:
           name: AssetStudio-GUI-net8.0-windows-x64
-          path: AssetStudio.GUI/bin/Release/net8.0-windows/win-x64/publish/
+          path: ./publish-gui/
           retention-days: 90
 
-      # 上传.NET8 CLI产物
+      # 9. 上传CLI产物
       - name: Upload .NET8 CLI Artifact
         uses: actions/upload-artifact@v4
         with:
           name: AssetStudio-CLI-net8.0-windows-x64
-          path: AssetStudio.CLI/bin/Release/net8.0/win-x64/publish/
+          path: ./publish-cli/
           retention-days: 90
