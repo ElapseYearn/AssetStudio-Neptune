@@ -11,12 +11,12 @@ jobs:
         with:
           submodules: recursive
 
-      # 强制锁定.NET 8.0.403，屏蔽.NET 10
+      # 移除废弃的overrideExisting参数，仅指定.NET 8.0.403版本（足够锁定版本）
       - name: Install .NET 8.0.403 SDK
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '8.0.403'
-          overrideExisting: true
+          dotnet-version: '8.0.403' # 指定具体版本，自动优先使用该版本
+          # 移除overrideExisting（废弃参数，导致警告）
 
       # ========== 构建GUI ==========
       - name: Clean GUI Project
@@ -32,7 +32,6 @@ jobs:
         run: dotnet clean AssetStudio.CLI/AssetStudio.CLI.csproj -c Release
         shell: cmd
 
-      # 关键：CLI的框架是net8.0-windows，而非net8.0
       - name: Publish CLI (net8.0-windows)
         run: dotnet publish "AssetStudio.CLI/AssetStudio.CLI.csproj" -c Release -f net8.0-windows -r win-x64 --self-contained true -o "./publish-cli"
         shell: cmd
